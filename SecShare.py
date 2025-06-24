@@ -83,8 +83,7 @@ class SecShareBot:
         self._setup_directories()
         self._load_data()
         
-        # Start cleanup task
-        asyncio.create_task(self._cleanup_expired_transfers())
+        # Don't start cleanup task here - will be started when event loop is running
     
     def _setup_directories(self):
         """Create necessary directories for file storage"""
@@ -369,4 +368,8 @@ class SecShareBot:
             'total_transfers': user.total_transfers,
             'max_file_size_mb': max_file_size // (1024 * 1024),
             'max_transfers_per_day': max_transfers
-        } 
+        }
+
+    def start_cleanup_task(self):
+        """Start the cleanup task when event loop is running"""
+        asyncio.create_task(self._cleanup_expired_transfers()) 

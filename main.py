@@ -1,7 +1,7 @@
 import os
 import asyncio
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from SecShare import SecShareBot
 
@@ -14,10 +14,25 @@ class TelegramSecShareBot:
         self.secshare = SecShareBot(bot_token)
         self.application = Application.builder().token(bot_token).build()
         self._setup_handlers()
+        self._setup_commands()
+    
+    def _setup_commands(self):
+        """Setup bot commands for better UX"""
+        commands = [
+            BotCommand("start", "🚀 Start the bot"),
+            BotCommand("send", "📤 Send a file or message"),
+            BotCommand("receive", "📥 Receive a package"),
+            BotCommand("stats", "📊 View your usage stats"),
+            BotCommand("help", "❓ Get help"),
+            BotCommand("premium", "⭐ Upgrade to premium")
+        ]
+        asyncio.create_task(self.application.bot.set_my_commands(commands))
     
     def _setup_handlers(self):
         """Setup all bot handlers"""
         self.application.add_handler(CommandHandler("start", self.start_command))
+        self.application.add_handler(CommandHandler("send", self.send_command))
+        self.application.add_handler(CommandHandler("receive", self.receive_command))
         self.application.add_handler(CommandHandler("help", self.help_command))
         self.application.add_handler(CommandHandler("stats", self.stats_command))
         self.application.add_handler(CommandHandler("premium", self.premium_command))
@@ -58,14 +73,17 @@ I'm your secure file and password sharing bot. Here's what I can do:
 Just send me a file or text to get started!
 
 Commands:
-/help - Show this help
+/send - Send a file or message
+/receive - Receive a package
 /stats - View your usage stats
+/help - Show this help
 /premium - Upgrade to premium
         """
         
         keyboard = [
             [InlineKeyboardButton("📤 Send File", callback_data="send_file")],
-            [InlineKeyboardButton("🔑 Send Password", callback_data="send_password")],
+            [InlineKeyboardButton("🔑 Send Message", callback_data="send_message")],
+            [InlineKeyboardButton("📥 Receive Package", callback_data="receive_package")],
             [InlineKeyboardButton("📊 My Stats", callback_data="stats")],
             [InlineKeyboardButton("⭐ Upgrade Premium", callback_data="premium")]
         ]
@@ -73,15 +91,50 @@ Commands:
         
         await update.message.reply_text(welcome_text, reply_markup=reply_markup)
     
+    async def send_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /send command"""
+        keyboard = [
+            [InlineKeyboardButton("📁 Upload File", callback_data="send_file")],
+            [InlineKeyboardButton("💬 Type Message", callback_data="send_message")],
+            [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "📤 **What would you like to send?**\n\n"
+            "• **File**: Upload any file (max 50MB free, 1GB premium)\n"
+            "• **Message**: Type a secure message or password\n\n"
+            "Choose an option below:",
+            reply_markup=reply_markup
+        )
+    
+    async def receive_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /receive command"""
+        await update.message.reply_text(
+            "📥 **To receive a package:**\n\n"
+            "1. Click the secure link shared with you\n"
+            "2. Or paste the transfer ID here\n"
+            "3. Enter password if required\n"
+            "4. Confirm receipt to auto-delete\n\n"
+            "🔗 **Paste the transfer ID or link here:**"
+        )
+        context.user_data['waiting_for_transfer_id'] = True
+    
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command"""
         help_text = """
 🔐 **SecShare Help**
 
+**Quick Commands:**
+/send - Send a file or message
+/receive - Receive a package  
+/stats - View your usage stats
+/premium - Upgrade to premium
+
 **How to use:**
 
-1. **Send a File**: Just upload any file and I'll give you a secure link
-2. **Send Text**: Type your message and I'll encrypt it
+1. **Send a File**: Use /send or upload any file
+2. **Send Text**: Use /send or type your message
 3. **Add Password**: Reply with a password when prompted
 4. **Share Link**: Send the link to your recipient
 5. **Auto-Cleanup**: Files are deleted after being received
@@ -92,12 +145,6 @@ Commands:
 • Auto-expiry (15 minutes)
 • Secure file storage
 • No logs kept
-
-**Commands:**
-/start - Welcome message
-/help - This help
-/stats - Your usage statistics
-/premium - Upgrade to premium
 
 **Need help?** Contact @your_support_username
         """
@@ -120,8 +167,9 @@ Commands:
         keyboard = []
         if not stats['is_premium']:
             keyboard.append([InlineKeyboardButton("⭐ Upgrade to Premium", callback_data="premium")])
+        keyboard.append([InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")])
         
-        reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+        reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(stats_text, reply_markup=reply_markup)
     
     async def premium_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -147,12 +195,32 @@ Upgrade to unlock advanced features:
 
 To upgrade, contact @your_support_username
         """
-        await update.message.reply_text(premium_text)
+        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(premium_text, reply_markup=reply_markup)
     
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle text messages"""
         user_id = update.effective_user.id
         text = update.message.text
+        
+        # Check if waiting for transfer ID
+        if context.user_data.get('waiting_for_transfer_id'):
+            del context.user_data['waiting_for_transfer_id']
+            # Extract transfer ID from text (remove bot username if present)
+            transfer_id = text.split('/')[-1] if '/' in text else text
+            transfer_id = transfer_id.split('?start=')[-1] if '?start=' in transfer_id else transfer_id
+            
+            transfer = self.secshare.get_transfer(transfer_id)
+            if transfer:
+                if transfer.password_hash:
+                    context.user_data['waiting_for_password'] = transfer_id
+                    await update.message.reply_text("🔐 This transfer is password protected. Please enter the password:")
+                else:
+                    await self._send_transfer_content(update, transfer)
+            else:
+                await update.message.reply_text("❌ Transfer not found or expired.")
+            return
         
         # Check if this is a password for a transfer
         if 'waiting_for_password' in context.user_data:
@@ -219,8 +287,19 @@ To upgrade, contact @your_support_username
         if query.data == "send_file":
             await query.edit_message_text("📤 Please upload the file you want to share securely.")
         
-        elif query.data == "send_password":
+        elif query.data == "send_message":
             await query.edit_message_text("🔑 Please type the password or sensitive text you want to share securely.")
+        
+        elif query.data == "receive_package":
+            await query.edit_message_text(
+                "📥 **To receive a package:**\n\n"
+                "1. Click the secure link shared with you\n"
+                "2. Or paste the transfer ID here\n"
+                "3. Enter password if required\n"
+                "4. Confirm receipt to auto-delete\n\n"
+                "🔗 **Paste the transfer ID or link here:**"
+            )
+            context.user_data['waiting_for_transfer_id'] = True
         
         elif query.data == "stats":
             user_id = update.effective_user.id
@@ -238,6 +317,15 @@ To upgrade, contact @your_support_username
         
         elif query.data == "premium":
             await self.premium_command(update, context)
+        
+        elif query.data == "back_to_menu":
+            await self.start_command(update, context)
+        
+        elif query.data.startswith("confirm_"):
+            transfer_id = query.data.replace("confirm_", "")
+            user_id = update.effective_user.id
+            await self.secshare.confirm_received(transfer_id, user_id)
+            await query.edit_message_text("✅ Package received and deleted successfully!")
     
     async def _send_transfer_link(self, update: Update, transfer_id: str, transfer_type: str, file_name: str = None):
         """Send transfer link to user"""
@@ -301,6 +389,8 @@ Share this link with your recipient. The content will be automatically deleted a
     def run(self):
         """Start the bot"""
         logger.info("Starting SecShare bot...")
+        # Start cleanup task after event loop is running
+        self.secshare.start_cleanup_task()
         self.application.run_polling()
 
 def main():
