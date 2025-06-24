@@ -32,7 +32,7 @@ class TelegramSecShareBot:
     
     def _setup_commands(self):
         """Setup bot commands for better UX"""
-        commands = [
+        self.commands = [
             BotCommand("start", "🚀 Start the bot"),
             BotCommand("sendfile", "📁 Send a file"),
             BotCommand("sendmessage", "💬 Send a message"),
@@ -42,8 +42,6 @@ class TelegramSecShareBot:
             BotCommand("premium", "⭐ Upgrade to premium"),
             BotCommand("airdrop", "📱 AirDrop-style sharing")
         ]
-        # Store commands for later use
-        self.commands = commands
     
     def _setup_handlers(self):
         """Setup all bot handlers"""
@@ -74,17 +72,6 @@ class TelegramSecShareBot:
             self.application.add_handler(PreCheckoutQueryHandler(self.precheckout_callback))
             # Add handler for successful payments
             self.application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, self.successful_payment_callback))
-        
-        # Set up startup callback
-        self.application.add_startup_callback(self._on_startup)
-    
-    async def _on_startup(self, application: Application):
-        """Called when the bot starts up"""
-        try:
-            await application.bot.set_my_commands(self.commands)
-            logger.info("Bot commands set successfully")
-        except Exception as e:
-            logger.error(f"Failed to set bot commands: {e}")
     
     async def precheckout_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle pre-checkout queries for Telegram Stars"""
