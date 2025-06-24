@@ -142,7 +142,6 @@ class TelegramSecShareBot:
                         f"Please enter the password:"
                     )
                 else:
-                    # No password - send content directly
                     await self._send_transfer_content(update, transfer)
                 return
             else:
@@ -490,7 +489,7 @@ Just send me a file or message to get started!
             transfer = self.secshare.get_transfer(transfer_id, text)
             
             if transfer:
-                await self._send_transfer_content(update, transfer)
+                await self._send_transfer_link(update, transfer_id, "file" if transfer.is_file else "text", transfer.file_name if transfer.is_file else None)
                 del context.user_data['waiting_for_password']
             else:
                 await update.message.reply_text("❌ Invalid password. Please try again.")
@@ -513,14 +512,28 @@ Just send me a file or message to get started!
         # Create a new text transfer (default behavior)
         try:
             logger.info(f"Creating default text transfer for user {user_id}")
+            logger.info(f"Text content length: {len(text)} characters")
+            logger.info(f"User data: {context.user_data}")
+            
+            # Check if user exists and get their info
+            user = self.secshare._get_user(user_id)
+            logger.info(f"User info: {user}")
+            
             transfer_id = await self.secshare.create_text_transfer(user_id, text)
+            logger.info(f"Transfer created successfully: {transfer_id}")
+            
             await self._send_transfer_link(update, transfer_id, "text")
             logger.info(f"Created default text transfer {transfer_id} for user {user_id}")
         except ValueError as e:
             await update.message.reply_text(f"❌ {str(e)}")
-            logger.error(f"Error creating default text transfer for user {user_id}: {e}")
+            logger.error(f"ValueError creating default text transfer for user {user_id}: {e}")
+            logger.error(f"ValueError details: {type(e).__name__}: {str(e)}")
         except Exception as e:
             logger.error(f"Unexpected error creating default text transfer for user {user_id}: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"Exception details: {str(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             await update.message.reply_text("❌ An error occurred while creating your transfer. Please try again.")
     
     async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1200,11 +1213,22 @@ Share this link with your recipient.
     
     async def _send_transfer_link(self, update: Update, transfer_id: str, transfer_type: str, file_name: str = None):
         """Send transfer link to user with QR code and sharing options"""
-        bot_username = (await update.get_bot()).username
-        link = f"https://t.me/{bot_username}?start={transfer_id}"
-        
-        if transfer_type == "file":
-            message = f"""
+        try:
+            logger.info(f"Starting _send_transfer_link for transfer {transfer_id}, type: {transfer_type}")
+            
+            # Get bot username
+            try:
+                bot_username = (await update.get_bot()).username
+                logger.info(f"Bot username: {bot_username}")
+            except Exception as e:
+                logger.error(f"Error getting bot username: {e}")
+                bot_username = "SecShareBot"  # Fallback
+            
+            link = f"https://t.me/{bot_username}?start={transfer_id}"
+            logger.info(f"Generated link: {link}")
+            
+            if transfer_type == "file":
+                message = f"""
 📤 File Shared Successfully!
 
 📁 File: {file_name}
@@ -1213,9 +1237,9 @@ Share this link with your recipient.
 🔒 Security: End-to-end encrypted
 
 Share this link with your recipient. The file will be automatically deleted after they receive it.
-            """
-        else:
-            message = f"""
+                """
+            else:
+                message = f"""
 🔑 Password Shared Successfully!
 
 🔗 Secure Link: `{link}`
@@ -1223,38 +1247,68 @@ Share this link with your recipient. The file will be automatically deleted afte
 🔒 Security: End-to-end encrypted
 
 Share this link with your recipient. The content will be automatically deleted after they receive it.
-            """
-        
-        # Generate QR code
-        qr_path = self._generate_qr_code(link, transfer_id)
-        
-        # Create enhanced keyboard with sharing options
-        keyboard = [
-            [InlineKeyboardButton("🔗 Copy Link", callback_data=f"copy_{transfer_id}")],
-            [InlineKeyboardButton("📱 Generate QR Code", callback_data=f"qr_{transfer_id}")],
-            [InlineKeyboardButton("📤 Share via Telegram", callback_data=f"share_{transfer_id}")],
-            [InlineKeyboardButton("🗑️ Delete Now", callback_data=f"delete_{transfer_id}")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        # Send the message
-        await update.message.reply_text(message, reply_markup=reply_markup)
-        
-        # If QR code was generated successfully, send it as a separate message
-        if qr_path and os.path.exists(qr_path):
+                """
+            
+            logger.info(f"Message prepared for transfer {transfer_id}")
+            
+            # Generate QR code
             try:
-                with open(qr_path, 'rb') as qr_file:
-                    await update.message.reply_photo(
-                        photo=qr_file,
-                        caption="📱 QR Code for easy sharing\n\nScan this code to access the package directly!",
-                        reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("📤 Share QR Code", callback_data=f"share_qr_{transfer_id}")],
-                            [InlineKeyboardButton("🔄 Regenerate QR", callback_data=f"regenerate_qr_{transfer_id}")]
-                        ])
-                    )
+                qr_path = self._generate_qr_code(link, transfer_id)
+                logger.info(f"QR code generated: {qr_path}")
             except Exception as e:
-                logger.error(f"Error sending QR code: {e}")
-                await update.message.reply_text("❌ Failed to generate QR code. You can still share the link above.")
+                logger.error(f"Error generating QR code: {e}")
+                qr_path = None
+            
+            # Create enhanced keyboard with sharing options
+            keyboard = [
+                [InlineKeyboardButton("🔗 Copy Link", callback_data=f"copy_{transfer_id}")],
+                [InlineKeyboardButton("📱 Generate QR Code", callback_data=f"qr_{transfer_id}")],
+                [InlineKeyboardButton("📤 Share via Telegram", callback_data=f"share_{transfer_id}")],
+                [InlineKeyboardButton("🗑️ Delete Now", callback_data=f"delete_{transfer_id}")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Send the message
+            logger.info(f"Sending message for transfer {transfer_id}")
+            await update.message.reply_text(message, reply_markup=reply_markup)
+            logger.info(f"Message sent successfully for transfer {transfer_id}")
+            
+            # If QR code was generated successfully, send it as a separate message
+            if qr_path and os.path.exists(qr_path):
+                try:
+                    logger.info(f"Sending QR code for transfer {transfer_id}")
+                    with open(qr_path, 'rb') as qr_file:
+                        await update.message.reply_photo(
+                            photo=qr_file,
+                            caption="📱 QR Code for easy sharing\n\nScan this code to access the package directly!",
+                            reply_markup=InlineKeyboardMarkup([
+                                [InlineKeyboardButton("📤 Share QR Code", callback_data=f"share_qr_{transfer_id}")],
+                                [InlineKeyboardButton("🔄 Regenerate QR", callback_data=f"regenerate_qr_{transfer_id}")],
+                                [InlineKeyboardButton("🔙 Back to Link", callback_data=f"back_to_link_{transfer_id}")]
+                            ])
+                        )
+                    logger.info(f"QR code sent successfully for transfer {transfer_id}")
+                except Exception as e:
+                    logger.error(f"Error sending QR code: {e}")
+                    await update.message.reply_text("❌ Failed to generate QR code. You can still share the link above.")
+            
+            logger.info(f"_send_transfer_link completed successfully for transfer {transfer_id}")
+            
+        except Exception as e:
+            logger.error(f"Error in _send_transfer_link for transfer {transfer_id}: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            # Try to send a simple message as fallback
+            try:
+                await update.message.reply_text(
+                    f"✅ Transfer created successfully!\n\n"
+                    f"🔗 Link: https://t.me/{(await update.get_bot()).username}?start={transfer_id}\n\n"
+                    f"Share this link with your recipient."
+                )
+            except Exception as fallback_error:
+                logger.error(f"Fallback message also failed: {fallback_error}")
+                await update.message.reply_text("❌ Transfer created but failed to send link. Please try again.")
     
     async def _send_transfer_content(self, update: Update, transfer: 'Transfer'):
         """Send transfer content to recipient"""

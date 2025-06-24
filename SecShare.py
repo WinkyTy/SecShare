@@ -108,13 +108,31 @@ class SecShareBot:
     def _save_data(self):
         """Save users and transfers to disk"""
         try:
-            with open(f"{self.config['data_dir']}/users.json", 'w') as f:
-                json.dump({str(k): asdict(v) for k, v in self.users.items()}, f, indent=2)
+            logger.info("Starting data save operation")
             
-            with open(f"{self.config['data_dir']}/transfers.json", 'w') as f:
+            # Save users
+            logger.info(f"Saving {len(self.users)} users")
+            users_file = f"{self.config['data_dir']}/users.json"
+            with open(users_file, 'w') as f:
+                json.dump({str(k): asdict(v) for k, v in self.users.items()}, f, indent=2)
+            logger.info(f"Users saved to {users_file}")
+            
+            # Save transfers
+            logger.info(f"Saving {len(self.transfers)} transfers")
+            transfers_file = f"{self.config['data_dir']}/transfers.json"
+            with open(transfers_file, 'w') as f:
                 json.dump({k: asdict(v) for k, v in self.transfers.items()}, f, indent=2)
+            logger.info(f"Transfers saved to {transfers_file}")
+            
+            logger.info("Data save operation completed successfully")
+            
         except Exception as e:
             logger.error(f"Error saving data: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            # Don't re-raise the exception to avoid breaking the bot
+            # Just log the error and continue
     
     def _generate_transfer_id(self) -> str:
         """Generate a unique transfer ID"""
@@ -152,11 +170,33 @@ class SecShareBot:
     
     def _encrypt_content(self, content: str) -> str:
         """Encrypt text content"""
-        return self.cipher_suite.encrypt(content.encode()).decode()
+        try:
+            logger.info(f"Encrypting content of length {len(content)}")
+            encrypted = self.cipher_suite.encrypt(content.encode())
+            result = encrypted.decode()
+            logger.info(f"Content encrypted successfully, result length: {len(result)}")
+            return result
+        except Exception as e:
+            logger.error(f"Error encrypting content: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            raise
     
     def _decrypt_content(self, encrypted_content: str) -> str:
         """Decrypt text content"""
-        return self.cipher_suite.decrypt(encrypted_content.encode()).decode()
+        try:
+            logger.info(f"Decrypting content of length {len(encrypted_content)}")
+            decrypted = self.cipher_suite.decrypt(encrypted_content.encode())
+            result = decrypted.decode()
+            logger.info(f"Content decrypted successfully, result length: {len(result)}")
+            return result
+        except Exception as e:
+            logger.error(f"Error decrypting content: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            raise
     
     def is_admin(self, user_id: int) -> bool:
         return user_id in self.admin_ids or user_id in self.superuser_ids
@@ -210,39 +250,66 @@ class SecShareBot:
     
     async def create_text_transfer(self, user_id: int, content: str, password: Optional[str] = None) -> str:
         """Create a text transfer"""
-        # Check limits
-        can_send, error_msg = self._check_user_limits(user_id)
-        if not can_send:
-            raise ValueError(error_msg)
+        logger.info(f"Starting text transfer creation for user {user_id}")
         
-        # Encrypt content
-        encrypted_content = self._encrypt_content(content)
-        
-        # Create transfer
-        transfer_id = self._generate_transfer_id()
-        expires_at = (datetime.now() + timedelta(minutes=self.config['transfer_expiry_minutes'])).isoformat()
-        
-        transfer = Transfer(
-            transfer_id=transfer_id,
-            sender_id=user_id,
-            recipient_id=None,
-            file_path=None,
-            encrypted_content=encrypted_content,
-            password_hash=self._hash_password(password) if password else None,
-            created_at=datetime.now().isoformat(),
-            expires_at=expires_at,
-            is_file=False
-        )
-        
-        self.transfers[transfer_id] = transfer
-        
-        # Update user stats
-        user = self._get_user(user_id)
-        user.files_sent_today += 1
-        user.total_transfers += 1
-        self._save_data()
-        
-        return transfer_id
+        try:
+            # Check limits
+            logger.info(f"Checking user limits for user {user_id}")
+            can_send, error_msg = self._check_user_limits(user_id)
+            if not can_send:
+                logger.warning(f"User {user_id} hit limits: {error_msg}")
+                raise ValueError(error_msg)
+            logger.info(f"User {user_id} passed limit check")
+            
+            # Encrypt content
+            logger.info(f"Encrypting content for user {user_id}")
+            encrypted_content = self._encrypt_content(content)
+            logger.info(f"Content encrypted successfully for user {user_id}")
+            
+            # Create transfer
+            logger.info(f"Creating transfer object for user {user_id}")
+            transfer_id = self._generate_transfer_id()
+            expires_at = (datetime.now() + timedelta(minutes=self.config['transfer_expiry_minutes'])).isoformat()
+            
+            transfer = Transfer(
+                transfer_id=transfer_id,
+                sender_id=user_id,
+                recipient_id=None,
+                file_path=None,
+                encrypted_content=encrypted_content,
+                password_hash=self._hash_password(password) if password else None,
+                created_at=datetime.now().isoformat(),
+                expires_at=expires_at,
+                is_file=False
+            )
+            
+            logger.info(f"Transfer object created: {transfer_id}")
+            
+            # Add to transfers dict
+            self.transfers[transfer_id] = transfer
+            logger.info(f"Transfer added to dict: {transfer_id}")
+            
+            # Update user stats
+            logger.info(f"Updating user stats for user {user_id}")
+            user = self._get_user(user_id)
+            user.files_sent_today += 1
+            user.total_transfers += 1
+            logger.info(f"User stats updated: files_sent_today={user.files_sent_today}, total_transfers={user.total_transfers}")
+            
+            # Save data
+            logger.info(f"Saving data for user {user_id}")
+            self._save_data()
+            logger.info(f"Data saved successfully for user {user_id}")
+            
+            logger.info(f"Text transfer creation completed successfully: {transfer_id}")
+            return transfer_id
+            
+        except Exception as e:
+            logger.error(f"Error in create_text_transfer for user {user_id}: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            raise
     
     async def create_file_transfer(self, user_id: int, file_path: str, file_name: str, 
                                  file_size: int, password: Optional[str] = None) -> str:
