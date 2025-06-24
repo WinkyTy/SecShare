@@ -328,29 +328,6 @@ class SecShareBot:
             transfer.recipient_id = recipient_id
             self._delete_transfer(transfer_id)
     
-    async def _cleanup_expired_transfers(self):
-        """Periodically cleanup expired transfers"""
-        while True:
-            try:
-                current_time = datetime.now()
-                expired_ids = []
-                
-                for transfer_id, transfer in self.transfers.items():
-                    if datetime.fromisoformat(transfer.expires_at) < current_time:
-                        expired_ids.append(transfer_id)
-                
-                for transfer_id in expired_ids:
-                    self._delete_transfer(transfer_id)
-                
-                if expired_ids:
-                    logger.info(f"Cleaned up {len(expired_ids)} expired transfers")
-                
-            except Exception as e:
-                logger.error(f"Error in cleanup task: {e}")
-            
-            # Run every hour
-            await asyncio.sleep(3600)
-    
     def get_user_stats(self, user_id: int) -> Dict:
         """Get user statistics"""
         user = self._get_user(user_id)
@@ -368,8 +345,4 @@ class SecShareBot:
             'total_transfers': user.total_transfers,
             'max_file_size_mb': max_file_size // (1024 * 1024),
             'max_transfers_per_day': max_transfers
-        }
-
-    def start_cleanup_task(self):
-        """Start the cleanup task when event loop is running"""
-        asyncio.create_task(self._cleanup_expired_transfers()) 
+        } 

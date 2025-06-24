@@ -376,8 +376,6 @@ Share this link with your recipient. The content will be automatically deleted a
     def run(self):
         """Start the bot"""
         logger.info("Starting SecShare bot...")
-        # Start cleanup task after event loop is running
-        self.secshare.start_cleanup_task()
         self.application.run_polling()
 
 def main():
