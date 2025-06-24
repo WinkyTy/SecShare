@@ -15,10 +15,14 @@ A secure, end-to-end encrypted file and password sharing Telegram bot with autom
 - **One-click file uploads** - just send any file
 - **Instant text sharing** - type and share
 - **Direct links** - recipients get direct bot access
+- **QR code generation** - scan to access packages instantly
+- **AirDrop-style sharing** - instant nearby device transfer
 - **Auto-cleanup** - files deleted after receipt
 
 ### 🎯 User Experience
 - **Intuitive interface** with inline buttons
+- **QR code sharing** for instant transfers
+- **Multiple sharing options** (link, QR, Telegram share)
 - **Usage statistics** and limits tracking
 - **Premium tier** with increased limits
 - **Mobile-friendly** design
@@ -59,6 +63,12 @@ cd SecShare
 # Install dependencies
 pip install -r requirements.txt
 
+# Dependencies include:
+# - python-telegram-bot: Telegram bot API
+# - cryptography: Encryption and security
+# - qrcode[pil]: QR code generation with custom styling
+# - Pillow: Image processing for QR codes
+
 # Set environment variable
 export TELEGRAM_BOT_TOKEN=your_bot_token
 
@@ -83,6 +93,37 @@ SecShare/
 
 ### Environment Variables
 - `TELEGRAM_BOT_TOKEN`: Your Telegram bot token (required)
+- `ADMIN_USER_ID`: Your Telegram user ID for admin access (optional)
+- `STARS_PROVIDER_TOKEN`: Telegram Stars provider token for payments (optional)
+- `CONTACT_INFO`: Contact information for support (optional, defaults to "Contact admin for support")
+
+### Telegram Stars Payment Setup
+
+To enable Telegram Stars payments for premium features:
+
+1. **Get a Stars Provider Token:**
+   - Contact @BotFather and request a Stars provider token
+   - Or apply through Telegram's payment system
+   - Set the token as `STARS_PROVIDER_TOKEN` environment variable
+
+2. **Configure Prices:**
+   - 1 Day: ⭐ 50 stars
+   - 1 Week: ⭐ 150 stars
+   - 1 Month: ⭐ 300 stars
+   - 3 Months: ⭐ 500 stars
+   - 1 Year: ⭐ 1000 stars
+   - Prices are configured in the bot code
+
+3. **Payment Flow:**
+   - Users click "Upgrade to Premium"
+   - Choose from 5 subscription options
+   - Pay with Telegram Stars
+   - Automatically upgraded to premium
+   - Beta warning displayed to users
+
+4. **Fallback:**
+   - If Stars not configured, shows "I'm Interested" button
+   - Sends admin notification for manual processing
 
 ### Bot Settings (in SecShare.py)
 ```python
@@ -103,11 +144,15 @@ self.config = {
 ### For Senders
 1. **Send a file** - Upload any file to the bot
 2. **Send text** - Type your message and send
-3. **Get link** - Bot provides a secure link
-4. **Share link** - Send to your recipient
+3. **Get link & QR code** - Bot provides secure link and QR code
+4. **Share options** - Choose from multiple sharing methods:
+   - 🔗 Direct link sharing
+   - 📱 QR code scanning
+   - 📤 Telegram built-in sharing
+   - 📱 AirDrop-style nearby sharing
 
 ### For Recipients
-1. **Click link** - Opens bot with transfer
+1. **Click link or scan QR** - Opens bot with transfer
 2. **Enter password** (if required)
 3. **Receive content** - File or text delivered
 4. **Confirm receipt** - Auto-deletes content (expires in 15 minutes)
@@ -117,6 +162,7 @@ self.config = {
 - `/help` - Show help information
 - `/stats` - View your usage statistics
 - `/premium` - Upgrade to premium plan
+- `/airdrop` - AirDrop-style sharing interface
 
 ## 🔐 Security Features
 
@@ -152,6 +198,9 @@ self.config = {
 ## 🔮 Future Improvements
 
 ### Planned Features
+- [x] **QR code generation** with Telegram-style design
+- [x] **AirDrop-style sharing** for instant nearby transfers
+- [x] **Multiple sharing options** (link, QR, Telegram share)
 - [ ] **Premium subscription system** with payment integration
 - [ ] **Advanced encryption** with RSA key pairs
 - [ ] **File compression** for larger transfers
