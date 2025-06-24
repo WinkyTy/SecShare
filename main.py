@@ -42,7 +42,7 @@ I'm your secure file and password sharing bot. Here's what I can do:
 📤 **Send Files**: Upload any file and get a secure link
 🔑 **Send Passwords**: Share sensitive text securely
 🔒 **Password Protection**: Add passwords to your transfers
-⏰ **Auto-Expiry**: Transfers expire in 24 hours
+⏰ **Auto-Expiry**: Transfers expire in 15 minutes
 🗑️ **Auto-Delete**: Files are deleted after being received
 
 **Free Plan:**
@@ -89,7 +89,7 @@ Commands:
 **Security Features:**
 • End-to-end encryption
 • Password protection
-• Auto-expiry (24 hours)
+• Auto-expiry (15 minutes)
 • Secure file storage
 • No logs kept
 
@@ -250,7 +250,7 @@ To upgrade, contact @your_support_username
 
 📁 **File**: {file_name}
 🔗 **Secure Link**: `{link}`
-⏰ **Expires**: 24 hours
+⏰ **Expires**: 15 minutes
 🔒 **Security**: End-to-end encrypted
 
 Share this link with your recipient. The file will be automatically deleted after they receive it.
@@ -260,7 +260,7 @@ Share this link with your recipient. The file will be automatically deleted afte
 🔑 **Password Shared Successfully!**
 
 🔗 **Secure Link**: `{link}`
-⏰ **Expires**: 24 hours
+⏰ **Expires**: 15 minutes
 🔒 **Security**: End-to-end encrypted
 
 Share this link with your recipient. The content will be automatically deleted after they receive it.

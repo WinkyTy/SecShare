@@ -7,7 +7,7 @@ A secure, end-to-end encrypted file and password sharing Telegram bot with autom
 ### 🔒 Security
 - **End-to-end encryption** for all content
 - **Password protection** for sensitive transfers
-- **Automatic expiry** (24 hours)
+- **Automatic expiry** (15 minutes, extendable for premium)
 - **Secure file storage** with no logs
 - **Zero-knowledge architecture**
 
@@ -29,13 +29,13 @@ A secure, end-to-end encrypted file and password sharing Telegram bot with autom
 - 50MB max file size
 - 5 transfers per day
 - Basic encryption
-- 24-hour expiry
+- 15-minute expiry
 
 #### Premium Plan
 - 1GB max file size
 - 20 transfers per day
 - Advanced security features
-- Priority support
+- (Future) Extend expiry to 24 hours
 
 ## 🚀 Quick Start
 
@@ -91,7 +91,8 @@ self.config = {
     'premium_file_size_limit': 1024 * 1024 * 1024, # 1GB
     'free_transfers_per_hour': 5,
     'premium_transfers_per_hour': 20,
-    'transfer_expiry_hours': 24,
+    'transfer_expiry_minutes': 15,                 # 15 minutes (default)
+    # Future: allow premium users to extend to 24 hours
     'temp_dir': 'temp_files',
     'data_dir': 'data'
 }
@@ -109,7 +110,7 @@ self.config = {
 1. **Click link** - Opens bot with transfer
 2. **Enter password** (if required)
 3. **Receive content** - File or text delivered
-4. **Confirm receipt** - Auto-deletes content
+4. **Confirm receipt** - Auto-deletes content (expires in 15 minutes)
 
 ### Commands
 - `/start` - Welcome message and main menu
@@ -123,6 +124,7 @@ self.config = {
 - **Fernet symmetric encryption** for text content
 - **PBKDF2 password hashing** with salt
 - **Secure key generation** using cryptography library
+- **Short-lived transfers** (15 minutes by default, extendable for premium in the future)
 
 ### Data Protection
 - **No persistent logs** of file content
