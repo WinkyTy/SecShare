@@ -73,7 +73,8 @@ class SecShareBot:
             'premium_file_size_limit': 1024 * 1024 * 1024,  # 1GB
             'free_transfers_per_hour': 5,
             'premium_transfers_per_hour': 20,
-            'transfer_expiry_hours': 24,
+            'transfer_expiry_minutes': 15,  # 15 minutes for all users
+            # Future: allow premium users to extend to 24 hours
             'temp_dir': 'temp_files',
             'data_dir': 'data'
         }
@@ -220,7 +221,7 @@ class SecShareBot:
         
         # Create transfer
         transfer_id = self._generate_transfer_id()
-        expires_at = (datetime.now() + timedelta(hours=self.config['transfer_expiry_hours'])).isoformat()
+        expires_at = (datetime.now() + timedelta(minutes=self.config['transfer_expiry_minutes'])).isoformat()
         
         transfer = Transfer(
             transfer_id=transfer_id,
@@ -259,7 +260,7 @@ class SecShareBot:
         
         # Create transfer
         transfer_id = self._generate_transfer_id()
-        expires_at = (datetime.now() + timedelta(hours=self.config['transfer_expiry_hours'])).isoformat()
+        expires_at = (datetime.now() + timedelta(minutes=self.config['transfer_expiry_minutes'])).isoformat()
         
         transfer = Transfer(
             transfer_id=transfer_id,
