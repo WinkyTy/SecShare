@@ -1,7 +1,7 @@
 import os
 import asyncio
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from SecShare import SecShareBot
 
@@ -14,19 +14,6 @@ class TelegramSecShareBot:
         self.secshare = SecShareBot(bot_token)
         self.application = Application.builder().token(bot_token).build()
         self._setup_handlers()
-        self._setup_commands()
-    
-    def _setup_commands(self):
-        """Setup bot commands for better UX"""
-        commands = [
-            BotCommand("start", "🚀 Start the bot"),
-            BotCommand("send", "📤 Send a file or message"),
-            BotCommand("receive", "📥 Receive a package"),
-            BotCommand("stats", "📊 View your usage stats"),
-            BotCommand("help", "❓ Get help"),
-            BotCommand("premium", "⭐ Upgrade to premium")
-        ]
-        asyncio.create_task(self.application.bot.set_my_commands(commands))
     
     def _setup_handlers(self):
         """Setup all bot handlers"""
