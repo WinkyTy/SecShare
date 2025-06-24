@@ -3,4 +3,5 @@ cryptography==41.0.7
 asyncio
 pathlib
 qrcode[pil]==7.4.2
-Pillow==10.0.1 
+Pillow==10.0.1
+requests==2.31.0 

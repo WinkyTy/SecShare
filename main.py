@@ -411,18 +411,24 @@ Just send me a file or message to get started!
         user_id = update.effective_user.id
         text = update.message.text
         
+        logger.info(f"Received text from user {user_id}: {text[:50]}...")
+        
         # Check if waiting for message
         if context.user_data.get('waiting_for_message'):
+            logger.info(f"User {user_id} is waiting for message input")
             del context.user_data['waiting_for_message']
             try:
                 transfer_id = await self.secshare.create_text_transfer(user_id, text)
                 await self._send_transfer_link(update, transfer_id, "text")
+                logger.info(f"Created text transfer {transfer_id} for user {user_id}")
             except ValueError as e:
                 await update.message.reply_text(f"❌ {str(e)}")
+                logger.error(f"Error creating text transfer for user {user_id}: {e}")
             return
         
         # Check if waiting for transfer ID
         if context.user_data.get('waiting_for_transfer_id'):
+            logger.info(f"User {user_id} is waiting for transfer ID input")
             del context.user_data['waiting_for_transfer_id']
             # Extract transfer ID from text (remove bot username if present)
             transfer_id = text.split('/')[-1] if '/' in text else text
@@ -468,33 +474,49 @@ Just send me a file or message to get started!
         try:
             transfer_id = await self.secshare.create_text_transfer(user_id, text)
             await self._send_transfer_link(update, transfer_id, "text")
+            logger.info(f"Created default text transfer {transfer_id} for user {user_id}")
         except ValueError as e:
             await update.message.reply_text(f"❌ {str(e)}")
+            logger.error(f"Error creating default text transfer for user {user_id}: {e}")
     
     async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle document uploads"""
         user_id = update.effective_user.id
         document = update.message.document
         
+        logger.info(f"Received document from user {user_id}: {document.file_name} ({document.file_size} bytes)")
+        
         try:
+            # Ensure temp directory exists
+            os.makedirs(self.secshare.config['temp_dir'], exist_ok=True)
+            
             # Download the file
             file = await context.bot.get_file(document.file_id)
             file_path = f"{self.secshare.config['temp_dir']}/{document.file_id}_{document.file_name}"
             
+            logger.info(f"Downloading file to {file_path}")
             await file.download_to_drive(file_path)
+            
+            # Verify file was downloaded
+            if not os.path.exists(file_path):
+                raise Exception("File download failed - file not found on disk")
+            
+            logger.info(f"File downloaded successfully: {file_path}")
             
             # Create transfer
             transfer_id = await self.secshare.create_file_transfer(
                 user_id, file_path, document.file_name, document.file_size
             )
             
+            logger.info(f"Created file transfer {transfer_id} for user {user_id}")
             await self._send_transfer_link(update, transfer_id, "file", document.file_name)
             
         except ValueError as e:
             await update.message.reply_text(f"❌ {str(e)}")
+            logger.error(f"ValueError in document handling for user {user_id}: {e}")
         except Exception as e:
-            logger.error(f"Error handling document: {e}")
-            await update.message.reply_text("❌ An error occurred while processing your file.")
+            logger.error(f"Error handling document for user {user_id}: {e}")
+            await update.message.reply_text("❌ An error occurred while processing your file. Please try again.")
     
     async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle photo uploads"""
@@ -1216,6 +1238,38 @@ Share this link with your recipient. The content will be automatically deleted a
     def run(self):
         """Start the bot"""
         logger.info("Starting SecShare bot...")
+        
+        # Set bot commands using a simple approach
+        try:
+            import requests
+            bot_token = self.application.bot.token
+            commands_data = {
+                "commands": [
+                    {"command": "start", "description": "🚀 Start the bot"},
+                    {"command": "sendfile", "description": "📁 Send a file"},
+                    {"command": "sendmessage", "description": "💬 Send a message"},
+                    {"command": "receive", "description": "📥 Receive a package"},
+                    {"command": "stats", "description": "📊 View your usage stats"},
+                    {"command": "help", "description": "❓ Get help"},
+                    {"command": "premium", "description": "⭐ Upgrade to premium"},
+                    {"command": "airdrop", "description": "📱 AirDrop-style sharing"}
+                ]
+            }
+            
+            response = requests.post(
+                f"https://api.telegram.org/bot{bot_token}/setMyCommands",
+                json=commands_data,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                logger.info("Bot commands set successfully via API")
+            else:
+                logger.warning(f"Failed to set bot commands: {response.status_code} - {response.text}")
+                
+        except Exception as e:
+            logger.warning(f"Could not set bot commands: {e}")
+        
         self.application.run_polling()
 
 def main():
