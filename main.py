@@ -123,6 +123,40 @@ class TelegramSecShareBot:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command"""
         user = update.effective_user
+        
+        # Check if this is a transfer link (has start parameter)
+        if context.args:
+            transfer_id = context.args[0]
+            logger.info(f"User {user.id} accessed transfer via start command: {transfer_id}")
+            
+            # Try to get the transfer
+            transfer = self.secshare.get_transfer(transfer_id)
+            if transfer:
+                if transfer.password_hash:
+                    # Password protected - ask for password
+                    context.user_data['waiting_for_password'] = transfer_id
+                    await update.message.reply_text(
+                        f"🔐 This transfer is password protected.\n\n"
+                        f"📁 Type: {'File' if transfer.is_file else 'Message'}\n"
+                        f"⏰ Expires: 15 minutes\n\n"
+                        f"Please enter the password:"
+                    )
+                else:
+                    # No password - send content directly
+                    await self._send_transfer_content(update, transfer)
+                return
+            else:
+                await update.message.reply_text(
+                    "❌ Transfer not found or expired.\n\n"
+                    "The transfer may have:\n"
+                    "• Expired (15 minutes)\n"
+                    "• Been already received\n"
+                    "• Been deleted\n\n"
+                    "Please ask the sender to create a new transfer."
+                )
+                return
+        
+        # Regular start command - show welcome message
         welcome_text = f"""
 🔐 Welcome to SecShare, {user.first_name}!
 
@@ -424,6 +458,9 @@ Just send me a file or message to get started!
             except ValueError as e:
                 await update.message.reply_text(f"❌ {str(e)}")
                 logger.error(f"Error creating text transfer for user {user_id}: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error creating text transfer for user {user_id}: {e}")
+                await update.message.reply_text("❌ An error occurred while creating your transfer. Please try again.")
             return
         
         # Check if waiting for transfer ID
@@ -434,6 +471,7 @@ Just send me a file or message to get started!
             transfer_id = text.split('/')[-1] if '/' in text else text
             transfer_id = transfer_id.split('?start=')[-1] if '?start=' in transfer_id else transfer_id
             
+            logger.info(f"User {user_id} provided transfer ID: {transfer_id}")
             transfer = self.secshare.get_transfer(transfer_id)
             if transfer:
                 if transfer.password_hash:
@@ -448,6 +486,7 @@ Just send me a file or message to get started!
         # Check if this is a password for a transfer
         if 'waiting_for_password' in context.user_data:
             transfer_id = context.user_data['waiting_for_password']
+            logger.info(f"User {user_id} provided password for transfer {transfer_id}")
             transfer = self.secshare.get_transfer(transfer_id, text)
             
             if transfer:
@@ -459,6 +498,7 @@ Just send me a file or message to get started!
         
         # Check if this is a transfer ID
         if len(text) == 22 and text.replace('-', '').replace('_', '').isalnum():
+            logger.info(f"User {user_id} provided transfer ID directly: {text}")
             transfer = self.secshare.get_transfer(text)
             if transfer:
                 if transfer.password_hash:
@@ -472,12 +512,16 @@ Just send me a file or message to get started!
         
         # Create a new text transfer (default behavior)
         try:
+            logger.info(f"Creating default text transfer for user {user_id}")
             transfer_id = await self.secshare.create_text_transfer(user_id, text)
             await self._send_transfer_link(update, transfer_id, "text")
             logger.info(f"Created default text transfer {transfer_id} for user {user_id}")
         except ValueError as e:
             await update.message.reply_text(f"❌ {str(e)}")
             logger.error(f"Error creating default text transfer for user {user_id}: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error creating default text transfer for user {user_id}: {e}")
+            await update.message.reply_text("❌ An error occurred while creating your transfer. Please try again.")
     
     async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle document uploads"""
@@ -487,21 +531,42 @@ Just send me a file or message to get started!
         logger.info(f"Received document from user {user_id}: {document.file_name} ({document.file_size} bytes)")
         
         try:
-            # Ensure temp directory exists
-            os.makedirs(self.secshare.config['temp_dir'], exist_ok=True)
+            # Check file size first
+            if document.file_size is None:
+                await update.message.reply_text("❌ Unable to determine file size. Please try again.")
+                return
+            
+            # Ensure temp directory exists with proper permissions
+            temp_dir = self.secshare.config['temp_dir']
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            # Test write permissions
+            test_file = os.path.join(temp_dir, "test_write.tmp")
+            try:
+                with open(test_file, 'w') as f:
+                    f.write("test")
+                os.remove(test_file)
+            except Exception as e:
+                logger.error(f"Temp directory not writable: {e}")
+                await update.message.reply_text("❌ Server storage error. Please try again later.")
+                return
             
             # Download the file
             file = await context.bot.get_file(document.file_id)
-            file_path = f"{self.secshare.config['temp_dir']}/{document.file_id}_{document.file_name}"
+            file_path = os.path.join(temp_dir, f"{document.file_id}_{document.file_name}")
             
             logger.info(f"Downloading file to {file_path}")
             await file.download_to_drive(file_path)
             
-            # Verify file was downloaded
+            # Verify file was downloaded and has correct size
             if not os.path.exists(file_path):
                 raise Exception("File download failed - file not found on disk")
             
-            logger.info(f"File downloaded successfully: {file_path}")
+            actual_size = os.path.getsize(file_path)
+            if actual_size != document.file_size:
+                logger.warning(f"File size mismatch: expected {document.file_size}, got {actual_size}")
+            
+            logger.info(f"File downloaded successfully: {file_path} ({actual_size} bytes)")
             
             # Create transfer
             transfer_id = await self.secshare.create_file_transfer(
@@ -517,6 +582,14 @@ Just send me a file or message to get started!
         except Exception as e:
             logger.error(f"Error handling document for user {user_id}: {e}")
             await update.message.reply_text("❌ An error occurred while processing your file. Please try again.")
+            
+            # Clean up any partially downloaded file
+            if 'file_path' in locals() and os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    logger.info(f"Cleaned up partial file: {file_path}")
+                except Exception as cleanup_error:
+                    logger.error(f"Failed to cleanup partial file: {cleanup_error}")
     
     async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle photo uploads"""
@@ -866,33 +939,47 @@ Just send me a file or message to get started!
                 await query.edit_message_text("❌ Payment system not configured.")
         
         elif query.data == "premium_interest":
-            user = update.effective_user
-            admin_id = os.getenv('ADMIN_USER_ID')
+            premium_interest_text = f"""
+⭐ Interested in SecShare Premium?
+
+Thank you for your interest! Premium features include:
+
+🔓 Increased Limits:
+• 1GB file size (vs 50MB free)
+• 20 transfers per day (vs 5 free)
+• Priority support
+
+🔒 Enhanced Security:
+• Advanced encryption
+• Password protection
+• Secure file transfer
+
+💰 Pricing Options:
+• 1 Day - ⭐ 50 stars
+• 1 Week - ⭐ 150 stars
+• 1 Month - ⭐ 300 stars
+• 3 Months - ⭐ 500 stars
+• 1 Year - ⭐ 1000 stars
+
+For questions or support, contact: {self.contact_info}
+
+Choose your subscription plan:
+            """
             
-            if admin_id:
-                try:
-                    admin_message = f"""
-⭐ Premium Interest Alert!
-
-User: {user.first_name} {user.last_name or ''}
-Username: @{user.username or 'No username'}
-User ID: {user.id}
-Plan: {'Premium' if self.secshare.is_admin(user.id) else 'Free'}
-
-This user is interested in premium features!
-                    """
-                    await context.bot.send_message(chat_id=int(admin_id), text=admin_message)
-                    await query.edit_message_text("✅ Thank you for your interest! I've notified the admin about your premium inquiry.")
-                except Exception as e:
-                    logger.error(f"Error sending admin notification: {e}")
-                    await query.edit_message_text("✅ Thank you for your interest in premium features!")
-            else:
-                await query.edit_message_text("✅ Thank you for your interest in premium features!")
+            keyboard = [
+                [InlineKeyboardButton("⭐ 1 Day - 50 stars", callback_data="pay_1day")],
+                [InlineKeyboardButton("⭐ 1 Week - 150 stars", callback_data="pay_1week")],
+                [InlineKeyboardButton("⭐ 1 Month - 300 stars", callback_data="pay_1month")],
+                [InlineKeyboardButton("⭐ 3 Months - 500 stars", callback_data="pay_3months")],
+                [InlineKeyboardButton("⭐ 1 Year - 1000 stars", callback_data="pay_1year")],
+                [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(premium_interest_text, reply_markup=reply_markup)
         
         elif query.data == "back_to_menu":
-            user = update.effective_user
             welcome_text = f"""
-🔐 Welcome to SecShare, {user.first_name}!
+🔐 Welcome to SecShare!
 
 I'm your secure file and password sharing bot. Here's what I can do:
 
@@ -937,8 +1024,43 @@ Commands:
         elif query.data.startswith("confirm_"):
             transfer_id = query.data.replace("confirm_", "")
             user_id = update.effective_user.id
-            await self.secshare.confirm_received(transfer_id, user_id)
-            await query.edit_message_text("✅ Package received and deleted successfully!")
+            logger.info(f"User {user_id} confirmed receipt of transfer {transfer_id}")
+            try:
+                await self.secshare.confirm_received(transfer_id, user_id)
+                await query.edit_message_text("✅ Package received and deleted successfully!")
+                logger.info(f"Transfer {transfer_id} confirmed and deleted by user {user_id}")
+            except Exception as e:
+                logger.error(f"Error confirming transfer {transfer_id} for user {user_id}: {e}")
+                await query.edit_message_text("❌ Error confirming receipt. Please try again.")
+        
+        elif query.data.startswith("delete_"):
+            transfer_id = query.data.replace("delete_", "")
+            user_id = update.effective_user.id
+            logger.info(f"User {user_id} requested deletion of transfer {transfer_id}")
+            try:
+                # Check if user is the sender
+                transfer = self.secshare.get_transfer(transfer_id)
+                if transfer and transfer.sender_id == user_id:
+                    self.secshare._delete_transfer(transfer_id)
+                    await query.edit_message_text("🗑️ Transfer deleted successfully!")
+                    logger.info(f"Transfer {transfer_id} deleted by sender {user_id}")
+                else:
+                    await query.edit_message_text("❌ You can only delete your own transfers.")
+            except Exception as e:
+                logger.error(f"Error deleting transfer {transfer_id} for user {user_id}: {e}")
+                await query.edit_message_text("❌ Error deleting transfer. Please try again.")
+        
+        elif query.data.startswith("copy_"):
+            transfer_id = query.data.replace("copy_", "")
+            bot_username = (await update.get_bot()).username
+            link = f"https://t.me/{bot_username}?start={transfer_id}"
+            
+            await query.edit_message_text(
+                f"🔗 Copy this link:\n\n`{link}`\n\nClick the link above to copy it to your clipboard.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Back", callback_data=f"back_to_link_{transfer_id}")]
+                ])
+            )
         
         elif query.data.startswith("qr_"):
             transfer_id = query.data.replace("qr_", "")
@@ -1136,27 +1258,41 @@ Share this link with your recipient. The content will be automatically deleted a
     
     async def _send_transfer_content(self, update: Update, transfer: 'Transfer'):
         """Send transfer content to recipient"""
-        if transfer.is_file:
-            if transfer.file_path and os.path.exists(transfer.file_path):
-                with open(transfer.file_path, 'rb') as f:
-                    await update.message.reply_document(
-                        document=f,
-                        filename=transfer.file_name,
-                        caption="📤 Secure file received from SecShare"
-                    )
-            else:
-                await update.message.reply_text("❌ File not found or already deleted.")
-        else:
-            try:
-                decrypted_content = self.secshare._decrypt_content(transfer.encrypted_content)
-                await update.message.reply_text(f"🔑 Secure Message Received:\n\n{decrypted_content}")
-            except Exception as e:
-                await update.message.reply_text("❌ Error decrypting message.")
+        user_id = update.effective_user.id
+        logger.info(f"Sending transfer content to user {user_id}: {transfer.transfer_id}")
         
-        # Add confirmation button
-        keyboard = [[InlineKeyboardButton("✅ Package Received", callback_data=f"confirm_{transfer.transfer_id}")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("Please confirm when you've received the package:", reply_markup=reply_markup)
+        try:
+            if transfer.is_file:
+                if transfer.file_path and os.path.exists(transfer.file_path):
+                    logger.info(f"Sending file: {transfer.file_path}")
+                    with open(transfer.file_path, 'rb') as f:
+                        await update.message.reply_document(
+                            document=f,
+                            filename=transfer.file_name,
+                            caption="📤 Secure file received from SecShare"
+                        )
+                    logger.info(f"File sent successfully to user {user_id}")
+                else:
+                    logger.error(f"File not found: {transfer.file_path}")
+                    await update.message.reply_text("❌ File not found or already deleted.")
+            else:
+                try:
+                    logger.info(f"Decrypting text content for user {user_id}")
+                    decrypted_content = self.secshare._decrypt_content(transfer.encrypted_content)
+                    await update.message.reply_text(f"🔑 Secure Message Received:\n\n{decrypted_content}")
+                    logger.info(f"Text content sent successfully to user {user_id}")
+                except Exception as e:
+                    logger.error(f"Error decrypting message for user {user_id}: {e}")
+                    await update.message.reply_text("❌ Error decrypting message.")
+            
+            # Add confirmation button
+            keyboard = [[InlineKeyboardButton("✅ Package Received", callback_data=f"confirm_{transfer.transfer_id}")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text("Please confirm when you've received the package:", reply_markup=reply_markup)
+            
+        except Exception as e:
+            logger.error(f"Error sending transfer content to user {user_id}: {e}")
+            await update.message.reply_text("❌ An error occurred while sending the content. Please try again.")
     
     def _generate_qr_code(self, link: str, transfer_id: str) -> str:
         """Generate a Telegram-style QR code for the transfer link"""
