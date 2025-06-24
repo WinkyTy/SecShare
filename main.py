@@ -41,18 +41,18 @@ class TelegramSecShareBot:
 
 I'm your secure file and password sharing bot. Here's what I can do:
 
-📤 **Send Files**: Upload any file and get a secure link
-🔑 **Send Passwords**: Share sensitive text securely
-🔒 **Password Protection**: Add passwords to your transfers
-⏰ **Auto-Expiry**: Transfers expire in 15 minutes
-🗑️ **Auto-Delete**: Files are deleted after being received
+📤 Send Files: Upload any file and get a secure link
+🔑 Send Passwords: Share sensitive text securely
+🔒 Password Protection: Add passwords to your transfers
+⏰ Auto-Expiry: Transfers expire in 15 minutes
+🗑️ Auto-Delete: Files are deleted after being received
 
-**Free Plan:**
+Free Plan:
 • 50MB max file size
 • 5 transfers per day
 • Basic encryption
 
-**Premium Plan:**
+Premium Plan:
 • 1GB max file size  
 • 20 transfers per day
 • Advanced security features
@@ -88,9 +88,9 @@ Commands:
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            "📤 **What would you like to send?**\n\n"
-            "• **File**: Upload any file (max 50MB free, 1GB premium)\n"
-            "• **Message**: Type a secure message or password\n\n"
+            "📤 What would you like to send?\n\n"
+            "• File: Upload any file (max 50MB free, 1GB premium)\n"
+            "• Message: Type a secure message or password\n\n"
             "Choose an option below:",
             reply_markup=reply_markup
         )
@@ -98,42 +98,42 @@ Commands:
     async def receive_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /receive command"""
         await update.message.reply_text(
-            "📥 **To receive a package:**\n\n"
+            "📥 To receive a package:\n\n"
             "1. Click the secure link shared with you\n"
             "2. Or paste the transfer ID here\n"
             "3. Enter password if required\n"
             "4. Confirm receipt to auto-delete\n\n"
-            "🔗 **Paste the transfer ID or link here:**"
+            "🔗 Paste the transfer ID or link here:"
         )
         context.user_data['waiting_for_transfer_id'] = True
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command"""
         help_text = """
-🔐 **SecShare Help**
+🔐 SecShare Help
 
-**Quick Commands:**
+Quick Commands:
 /send - Send a file or message
 /receive - Receive a package  
 /stats - View your usage stats
 /premium - Upgrade to premium
 
-**How to use:**
+How to use:
 
-1. **Send a File**: Use /send or upload any file
-2. **Send Text**: Use /send or type your message
-3. **Add Password**: Reply with a password when prompted
-4. **Share Link**: Send the link to your recipient
-5. **Auto-Cleanup**: Files are deleted after being received
+1. Send a File: Use /send or upload any file
+2. Send Text: Use /send or type your message
+3. Add Password: Reply with a password when prompted
+4. Share Link: Send the link to your recipient
+5. Auto-Cleanup: Files are deleted after being received
 
-**Security Features:**
+Security Features:
 • End-to-end encryption
 • Password protection
 • Auto-expiry (15 minutes)
 • Secure file storage
 • No logs kept
 
-**Need help?** Contact @your_support_username
+Need help? Contact @your_support_username
         """
         await update.message.reply_text(help_text)
     
@@ -143,12 +143,12 @@ Commands:
         stats = self.secshare.get_user_stats(user_id)
         
         stats_text = f"""
-📊 **Your Statistics**
+📊 Your Statistics
 
-👤 **Plan**: {'⭐ Premium' if stats['is_premium'] else '🆓 Free'}
-📤 **Transfers Today**: {stats['transfers_used_today']}/{stats['max_transfers_per_day']}
-📈 **Total Transfers**: {stats['total_transfers']}
-💾 **Max File Size**: {stats['max_file_size_mb']}MB
+👤 Plan: {'⭐ Premium' if stats['is_premium'] else '🆓 Free'}
+📤 Transfers Today: {stats['transfers_used_today']}/{stats['max_transfers_per_day']}
+📈 Total Transfers: {stats['total_transfers']}
+💾 Max File Size: {stats['max_file_size_mb']}MB
         """
         
         keyboard = []
@@ -162,21 +162,21 @@ Commands:
     async def premium_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /premium command"""
         premium_text = """
-⭐ **SecShare Premium**
+⭐ SecShare Premium
 
 Upgrade to unlock advanced features:
 
-🔓 **Increased Limits:**
+🔓 Increased Limits:
 • 1GB file size (vs 50MB free)
 • 20 transfers per day (vs 5 free)
 • Priority support
 
-🔒 **Enhanced Security:**
+🔒 Enhanced Security:
 • Advanced encryption
 • Password protection
 • Secure file transfer
 
-💰 **Pricing:**
+💰 Pricing:
 • $9.99/month
 • $99.99/year (17% savings)
 
@@ -279,12 +279,12 @@ To upgrade, contact @your_support_username
         
         elif query.data == "receive_package":
             await query.edit_message_text(
-                "📥 **To receive a package:**\n\n"
+                "📥 To receive a package:\n\n"
                 "1. Click the secure link shared with you\n"
                 "2. Or paste the transfer ID here\n"
                 "3. Enter password if required\n"
                 "4. Confirm receipt to auto-delete\n\n"
-                "🔗 **Paste the transfer ID or link here:**"
+                "🔗 Paste the transfer ID or link here:"
             )
             context.user_data['waiting_for_transfer_id'] = True
         
@@ -293,20 +293,81 @@ To upgrade, contact @your_support_username
             stats = self.secshare.get_user_stats(user_id)
             
             stats_text = f"""
-📊 **Your Statistics**
+📊 Your Statistics
 
-👤 **Plan**: {'⭐ Premium' if stats['is_premium'] else '🆓 Free'}
-📤 **Transfers Today**: {stats['transfers_used_today']}/{stats['max_transfers_per_day']}
-📈 **Total Transfers**: {stats['total_transfers']}
-💾 **Max File Size**: {stats['max_file_size_mb']}MB
+👤 Plan: {'⭐ Premium' if stats['is_premium'] else '🆓 Free'}
+📤 Transfers Today: {stats['transfers_used_today']}/{stats['max_transfers_per_day']}
+📈 Total Transfers: {stats['total_transfers']}
+💾 Max File Size: {stats['max_file_size_mb']}MB
             """
             await query.edit_message_text(stats_text)
         
         elif query.data == "premium":
-            await self.premium_command(update, context)
+            premium_text = """
+⭐ SecShare Premium
+
+Upgrade to unlock advanced features:
+
+🔓 Increased Limits:
+• 1GB file size (vs 50MB free)
+• 20 transfers per day (vs 5 free)
+• Priority support
+
+🔒 Enhanced Security:
+• Advanced encryption
+• Password protection
+• Secure file transfer
+
+💰 Pricing:
+• $9.99/month
+• $99.99/year (17% savings)
+
+To upgrade, contact @your_support_username
+            """
+            await query.edit_message_text(premium_text)
         
         elif query.data == "back_to_menu":
-            await self.start_command(update, context)
+            user = update.effective_user
+            welcome_text = f"""
+🔐 Welcome to SecShare, {user.first_name}!
+
+I'm your secure file and password sharing bot. Here's what I can do:
+
+📤 Send Files: Upload any file and get a secure link
+🔑 Send Passwords: Share sensitive text securely
+🔒 Password Protection: Add passwords to your transfers
+⏰ Auto-Expiry: Transfers expire in 15 minutes
+🗑️ Auto-Delete: Files are deleted after being received
+
+Free Plan:
+• 50MB max file size
+• 5 transfers per day
+• Basic encryption
+
+Premium Plan:
+• 1GB max file size  
+• 20 transfers per day
+• Advanced security features
+
+Just send me a file or text to get started!
+
+Commands:
+/send - Send a file or message
+/receive - Receive a package
+/stats - View your usage stats
+/help - Show this help
+/premium - Upgrade to premium
+            """
+            
+            keyboard = [
+                [InlineKeyboardButton("📤 Send File", callback_data="send_file")],
+                [InlineKeyboardButton("🔑 Send Message", callback_data="send_message")],
+                [InlineKeyboardButton("📥 Receive Package", callback_data="receive_package")],
+                [InlineKeyboardButton("📊 My Stats", callback_data="stats")],
+                [InlineKeyboardButton("⭐ Upgrade Premium", callback_data="premium")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(welcome_text, reply_markup=reply_markup)
         
         elif query.data.startswith("confirm_"):
             transfer_id = query.data.replace("confirm_", "")
@@ -321,22 +382,22 @@ To upgrade, contact @your_support_username
         
         if transfer_type == "file":
             message = f"""
-📤 **File Shared Successfully!**
+📤 File Shared Successfully!
 
-📁 **File**: {file_name}
-🔗 **Secure Link**: `{link}`
-⏰ **Expires**: 15 minutes
-🔒 **Security**: End-to-end encrypted
+📁 File: {file_name}
+🔗 Secure Link: `{link}`
+⏰ Expires: 15 minutes
+🔒 Security: End-to-end encrypted
 
 Share this link with your recipient. The file will be automatically deleted after they receive it.
             """
         else:
             message = f"""
-🔑 **Password Shared Successfully!**
+🔑 Password Shared Successfully!
 
-🔗 **Secure Link**: `{link}`
-⏰ **Expires**: 15 minutes
-🔒 **Security**: End-to-end encrypted
+🔗 Secure Link: `{link}`
+⏰ Expires: 15 minutes
+🔒 Security: End-to-end encrypted
 
 Share this link with your recipient. The content will be automatically deleted after they receive it.
             """
@@ -364,7 +425,7 @@ Share this link with your recipient. The content will be automatically deleted a
         else:
             try:
                 decrypted_content = self.secshare._decrypt_content(transfer.encrypted_content)
-                await update.message.reply_text(f"🔑 **Secure Message Received:**\n\n{decrypted_content}")
+                await update.message.reply_text(f"🔑 Secure Message Received:\n\n{decrypted_content}")
             except Exception as e:
                 await update.message.reply_text("❌ Error decrypting message.")
         
